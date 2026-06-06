@@ -1,5 +1,5 @@
 import os
-import requests
+import aiohttp
 from telegram import Update
 from telegram.ext import Application, MessageHandler, ContextTypes, filters
 
@@ -9,23 +9,22 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
 
-    try:
-        response = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "deepseek/deepseek-chat-v3-0324:free",
-                "messages": [
-                    {"role": "user", "content": user_text}
-                ]
-            },
-            timeout=60
-        )
+    url = "https://openrouter.ai/api/v1/chat/completions"
 
-        result = response.json()
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": "deepseek/deepseek-chat-v3-0324:free",
+        "messages": [{"role": "user", "content": user_text}]
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as resp:
+                result = await resp.json()
 
         if "choices" in result:
             answer = result["choices"][0]["message"]["content"]
@@ -38,6 +37,10 @@ async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(answer)
 
 def main():
+    if not BOT_TOKEN:
+        print("BOT_TOKEN missing")
+        return
+
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(
